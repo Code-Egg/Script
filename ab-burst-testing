@@ -1,0 +1,67 @@
+#!/bin/bash
+
+DUT_IP='x.x.x.x' #or domain
+file_name='xxxx'
+
+DUT_url="$DUT_IP/$file_name"
+total=0
+times=5
+cal_basic=1
+result_list=()
+
+cache_check()
+{
+    curl -s $DUT_url > /dev/null
+    cache_result=$(curl -s -I $DUT_url | grep hit)
+    if [ $? -eq 0 ];then
+        echo "lscache is hit"
+    elif [ $? -eq 1 ];then
+        echo "lscache is NOT hit"
+    fi
+}
+
+function echoY
+{
+    FLAG=$1
+    shift
+    echo -e "\033[38;5;148m$FLAG\033[39m$@"
+}
+
+function echoG
+{
+    FLAG=$1
+    shift
+    echo -e "\033[38;5;71m$FLAG\033[39m$@"
+}
+
+echoY "Test $DUT_url $times times"
+#cache_check
+
+for ((round=0;round<$times;round++))
+{
+    result_list[$round]=$(ab -n 100 -k -q -H "Accept-Encoding: gzip,deflate" \
+-c 10 $DUT_url | grep 'Requests per second' | awk '{print $4}')
+    sleep 1
+}
+check_r=${#result_list[*]}
+
+IFS=$'\n' sorted=($(sort -nrk1 <<<"${result_list[*]}"))
+declare -p sorted
+
+end_cal=$(($check_r-1))
+for ((cal=$cal_basic;cal<$end_cal;cal++))
+{
+    echo "cal: $cal"
+    num=$(printf "%.0f\n" ${sorted[$cal]}); echo "num: $num"
+    total=$((total+num)); echoG "total: $total"
+}
+
+divi()
+{
+    divi_result=$(echo "scale=2;$1/$2" | bc)
+}
+divi $total $(($end_cal-$cal_basic))
+
+echo "Result of $total/$(($end_cal-$cal_basic)): "
+echoY $divi_result
+unset result_list
