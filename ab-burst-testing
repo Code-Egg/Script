@@ -1,24 +1,12 @@
 #!/bin/bash
-
-DUT_IP='x.x.x.x' #or domain
-file_name='xxxx'
-
-DUT_url="$DUT_IP/$file_name"
+###Modify EXAMPLE.COM to your domain name
+DUT_url="http://EXAMPLE.COM/"
 total=0
-times=5
+times=${1:-5}
 cal_basic=1
+ab_num=1000
+ab_con=10
 result_list=()
-
-cache_check()
-{
-    curl -s $DUT_url > /dev/null
-    cache_result=$(curl -s -I $DUT_url | grep hit)
-    if [ $? -eq 0 ];then
-        echo "lscache is hit"
-    elif [ $? -eq 1 ];then
-        echo "lscache is NOT hit"
-    fi
-}
 
 function echoY
 {
@@ -34,13 +22,40 @@ function echoG
     echo -e "\033[38;5;71m$FLAG\033[39m$@"
 }
 
-echoY "Test $DUT_url $times times"
-#cache_check
+divi()
+{
+    divi_result=$(echo "scale=2;$1/$2" | bc)
+}
+
+### Test URL avaiable
+echoY "Test $DUT_url if reachable"
+curl -I -k $DUT_url
+if [ $? -ne 0 ]; then
+    echoY "URL is unable to reach, do you want to continue? [y/N]"
+    read cont_res
+    if [ $cont_res != 'y' ]; then
+        echo 'EXIT'; exit 0
+    fi
+fi
+
+### Check bc package
+which bc 2>&1 >/dev/null
+if [ $? -ne 0 ]; then
+    echoY "System can not found bc package, recommand to install before running script"
+fi
+
+### Check times parameter
+if [ $times -lt 4 ]; then
+    echoY "Please enter parameter larger than 3"; exit 0
+fi
+
+### Start running
+echoY "Test $DUT_url $times times with ab total: $ab_num concurrent: $ab_con"
 
 for ((round=0;round<$times;round++))
 {
-    result_list[$round]=$(ab -n 100 -k -q -H "Accept-Encoding: gzip,deflate" \
--c 10 $DUT_url | grep 'Requests per second' | awk '{print $4}')
+    result_list[$round]=$(ab -n $ab_num -k -q -H "Accept-Encoding: gzip,deflate" \
+-c $ab_con $DUT_url | grep 'Requests per second' | awk '{print $4}')
     sleep 1
 }
 check_r=${#result_list[*]}
@@ -51,17 +66,13 @@ declare -p sorted
 end_cal=$(($check_r-1))
 for ((cal=$cal_basic;cal<$end_cal;cal++))
 {
-    echo "cal: $cal"
+    echo "Round: $cal"
     num=$(printf "%.0f\n" ${sorted[$cal]}); echo "num: $num"
     total=$((total+num)); echoG "total: $total"
 }
 
-divi()
-{
-    divi_result=$(echo "scale=2;$1/$2" | bc)
-}
 divi $total $(($end_cal-$cal_basic))
 
-echo "Result of $total/$(($end_cal-$cal_basic)): "
-echoY $divi_result
+echo "Calculating Total/Rounds $total/$(($end_cal-$cal_basic))"
+echoY "Requests per second everage: $divi_result"
 unset result_list
