@@ -74,5 +74,5 @@ for ((cal=$cal_basic;cal<$end_cal;cal++))
 divi $total $(($end_cal-$cal_basic))
 
 echo "Calculating Total/Rounds $total/$(($end_cal-$cal_basic))"
-echoY "Requests per second everage: $divi_result"
+echoY "Requests per second average: $divi_result"
 unset result_list
